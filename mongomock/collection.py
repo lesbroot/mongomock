@@ -92,6 +92,15 @@ class Collection(object):
             subdocument = None
             for k, v in iteritems(document):
                 if k == '$set':
+                    positional = False
+                    for key in iterkeys(v):
+                        if '$' in key:
+                            positional = True
+                            break
+
+                    if positional:
+                        subdocument = self._update_document_fields_positional(existing_document, v, spec, _set_updater, subdocument)
+                        continue
                     self._update_document_fields(existing_document, v, _set_updater)
                 elif k == '$unset':
                     for field, value in iteritems(v):
@@ -360,7 +369,15 @@ class Collection(object):
                                     break
                             continue
 
-                        subspec = subspec[part]
+                        if part in subspec:
+                            subspec = subspec[part]
+                        else:
+                            def split_shit(k, v):
+                                splitted = k.split('.')
+                                if len(splitted) == 2 and isinstance(current_doc[part], list):
+                                    return splitted[0], {'$elemMatch': {splitted[1]: v}}
+                                return k, v
+                            subspec = dict([split_shit(k, v) for k, v in iteritems(subspec)])[part]
                         current_doc = current_doc[part]
                     subdocument = current_doc
                 updater(subdocument, field_name_parts[-1], v)
